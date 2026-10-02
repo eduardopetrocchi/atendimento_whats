@@ -1,0 +1,1222 @@
+{
+  "name": "Atendimento Odontológico Inteligente - WhatsApp + Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "### 1. Entrada & Filtro de Mensagens\nRecebe as mensagens via webhook da Evolution API, ignora mensagens disparadas pelo próprio bot (`fromMe`) e extrai o telefone e texto da mensagem.",
+        "height": 308,
+        "width": 704,
+        "color": 6
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2288,
+        1024
+      ],
+      "name": "Nota 1: Entrada",
+      "id": "cc37c156-e9de-4da1-a19a-77b0319246c8"
+    },
+    {
+      "parameters": {
+        "content": "### 2. Triagem e Roteamento\nIdentifica se o remetente é um dentista pré-cadastrado (pelo número de telefone) ou se é um paciente.\n\nSe for paciente, consulta o banco para verificar se já possui cadastro.",
+        "height": 480,
+        "width": 640,
+        "color": 7
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -1536,
+        1024
+      ],
+      "name": "Nota 2: Roteamento",
+      "id": "055111ad-c164-4a52-9806-3a6c248ece07"
+    },
+    {
+      "parameters": {
+        "content": "### 3. Assistente Interna dos Dentistas\nPermite ao dentista:\n- Consultar sua agenda do dia/semana\n- Agendar consultas para pacientes existentes\n- Cancelar consultas\n\nUsa LLM conectada à tabela de `agenda`/`consultas`.",
+        "height": 484,
+        "width": 1208,
+        "color": 4
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        720
+      ],
+      "name": "Nota 3: Dentistas",
+      "id": "b9e146e2-2d10-419c-a4fa-e90b48522f68"
+    },
+    {
+      "parameters": {
+        "content": "### 4. Atendimento a Pacientes Cadastrados\nAtende pacientes existentes no sistema:\n- Lista dentistas da clínica\n- Mostra horários disponíveis\n- Permite marcar e desmarcar consultas",
+        "height": 460,
+        "width": 1216,
+        "color": 3
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        1216
+      ],
+      "name": "Nota 4: Pacientes",
+      "id": "82cac580-4eed-43a5-af0e-3fc5798ffc3c"
+    },
+    {
+      "parameters": {
+        "content": "### 5. Onboarding / Cadastro de Novos Pacientes\nPara números não encontrados no Supabase:\n- Coleta nome completo, convênio e endereço\n- Confirma as informações com o paciente antes de salvar\n- Salva na tabela `pacientes` via Tool",
+        "height": 440,
+        "width": 1216,
+        "color": 5
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        1696
+      ],
+      "name": "Nota 5: Cadastro",
+      "id": "773ccb20-a1a6-42f6-b0fe-0ea5f1502835"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-in",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -2208,
+        1136
+      ],
+      "id": "1b0e6383-cd7a-4158-9238-7bd274f29da3",
+      "webhookId": "e609f140-9860-4b30-aa2a-d21c0ee0ddac"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fromme-false",
+              "leftValue": "={{ $json.body.data.key.fromMe }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "É mensagem fromMe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1984,
+        1136
+      ],
+      "id": "e6efabd7-591b-42a5-82d9-ff25644057cc"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "tel",
+              "name": "telefone",
+              "value": "={{ $json.body.data.key.remoteJid.split('@')[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "msg",
+              "name": "mensagem",
+              "value": "={{ $json.body.data.message.conversation }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Normaliza numero",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1760,
+        1120
+      ],
+      "id": "c94d28fe-43c3-4a77-b5f4-56e41b132233"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c210cd18-65c4-4ee1-ac29-ac5f2b599605",
+                    "leftValue": "={{ $json.telefone }}",
+                    "rightValue": "5548999990001",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Dra. Dentista 1"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "fdc492b6-0d4f-4dc0-84e3-26702f8d82c6",
+                    "leftValue": "={{ $json.telefone }}",
+                    "rightValue": "5548999990002",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Dr. Dentista 2"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "Paciente"
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        -1488,
+        1296
+      ],
+      "id": "ee90a8cf-ef31-4c32-b16d-3d563c674007",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "dentistas",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "condition": "like",
+              "keyValue": "=*{{ $json.telefone.slice(-8) }}"
+            }
+          ]
+        }
+      },
+      "name": "Busca dentista",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        800
+      ],
+      "id": "3884f376-3ed8-423e-859c-e5bed6c335bd"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "pacientes",
+        "limit": 1,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "telefone",
+              "condition": "eq",
+              "keyValue": "={{ $json.telefone }}"
+            }
+          ]
+        }
+      },
+      "name": "Busca cliente",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1216,
+        1344
+      ],
+      "alwaysOutputData": true,
+      "id": "694e758a-e678-45b1-9f1e-6f5930674b00"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "existe",
+              "leftValue": "={{ $json.telefone }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "name": "Cliente existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -848,
+        1328
+      ],
+      "id": "abaf6c2e-9685-43bf-b4c9-dba948ecafcf"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Data e hora atual: {{ $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat(\"cccc, dd/LL/yyyy HH:mm\") }}\n\nDENTISTA\n- ID: {{ $json.id }}\n- Nome: {{ $json.nome }}\n\nMENSAGEM\n{{ $('Normaliza numero').item.json.mensagem }}",
+        "options": {
+          "systemMessage": "Você é a Sofia, assistente interna da Clínica OdontoExemplo. Você está conversando pelo WhatsApp com um dentista da clínica, não com um paciente. O dentista já vem identificado no início da mensagem (ID e nome); chame-o pelo nome informado.\n\n## O que você faz\n- Mostrar a agenda do dentista (hoje, amanhã, a semana ou uma data específica)\n- Informar quem é o paciente de uma consulta (nome, telefone e convênio)\n- Agendar consulta para um paciente cadastrado\n- Cancelar consulta\n- Remarcar (cancelar a antiga e agendar a nova, só após confirmação)\n\n## Regras\n- Você só acessa a agenda do dentista que está conversando com você. Se ele pedir a agenda de outro dentista, explique que não tem acesso.\n- Use a \"Data e hora atual\" informada para interpretar \"hoje\", \"amanhã\", \"segunda\" ou \"semana que vem\". Fuso: America/Sao_Paulo. Se o dentista informar só o dia do mês, considere a próxima ocorrência futura.\n- Para consultar um dia, use como início a meia-noite desse dia e como fim a meia-noite do dia seguinte, com fuso -03:00. Para uma semana, vá da meia-noite de segunda até a meia-noite da segunda seguinte.\n- Nunca invente consultas, pacientes, datas ou horários. Tudo que informar deve vir das tools. Se não houver consultas no período, diga isso.\n- Ao mostrar a agenda, liste em ordem de horário, uma consulta por linha, no formato \"14:00 - Maria Silva (Unimed)\". Se o paciente não tiver convênio, omita os parênteses.\n- Funcionamento: seg a sex, 08:00 às 18:00. Duração de cada consulta: 30 minutos, em horários de 30 em 30 minutos. Se o dentista pedir um horário fora desse período, avise e só agende se ele confirmar explicitamente. Nunca agende no passado.\n- Antes de agendar, SEMPRE consulte a agenda do dia para confirmar que o horário está livre.\n- Para agendar, localize o paciente com a tool de busca, usando uma palavra do nome (primeiro nome ou sobrenome). Se houver mais de um resultado, liste nome completo e telefone e pergunte qual. Se não houver nenhum, informe que o paciente não está cadastrado e precisa fazer o cadastro conversando com a clínica pelo WhatsApp.\n- Antes de agendar ou cancelar, repita paciente, data, dia da semana e horário e peça a confirmação (\"sim\") do dentista. Só execute a tool depois de confirmado.\n- Para cancelar sem que o dentista diga qual consulta, consulte a agenda e pergunte qual.\n- Depois de executar uma ação, confirme o resultado. Se a tool retornar erro, avise que não foi possível. Nunca diga que concluiu algo que a tool não confirmou.\n- Cancelar ou remarcar NÃO avisa o paciente automaticamente. Depois de cancelar ou remarcar, lembre o dentista de que o paciente precisa ser avisado e informe o nome e o telefone dele.\n\n## Estilo (WhatsApp)\n- Português do Brasil, direto e objetivo. Mensagens curtas, sem markdown e sem títulos. Datas no formato \"segunda, 05/10 às 14:30\". Uma pergunta por vez.\n\n## Limites\n- Do paciente, compartilhe apenas nome, telefone e convênio. Nunca informe endereço.\n- Não dê orientação clínica nem informe valores.\n- Se o pedido fugir do seu escopo, diga o que você consegue fazer."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -288,
+        800
+      ],
+      "id": "07209989-57d0-4eac-938a-46ca0af721f4",
+      "name": "Agente dentistas",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        -544,
+        1040
+      ],
+      "id": "7050c28f-1098-4cc8-b9ba-f4cd5a9b58e3",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "76qNjQQTh7MHGfo0",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normaliza numero').first().json.telefone }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [
+        -416,
+        1040
+      ],
+      "id": "db56377c-efa0-4ba3-a82a-b80c8cf111d1",
+      "name": "Redis Chat Memory (dentistas)",
+      "credentials": {
+        "redis": {
+          "id": "HkferlZd4TweXEDL",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista as consultas agendadas do dentista atual em um intervalo de datas, com o nome, telefone e convênio do paciente. Use para mostrar a agenda e SEMPRE antes de agendar, para ver se o horário está livre. Informe inicio e fim em ISO 8601 com fuso -03:00 (formato AAAA-MM-DDT00:00:00-03:00); para um dia inteiro, inicio é a meia-noite do dia e fim é a meia-noite do dia seguinte. O dentista é identificado automaticamente. O resultado traz consulta_id, data_hora, paciente_id, paciente, telefone e convenio.",
+        "operation": "getAll",
+        "tableId": "agenda",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "dentista_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "agendada"
+            },
+            {
+              "keyName": "data_hora",
+              "condition": "gte",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('inicio', `Início do intervalo, ISO 8601 com fuso -03:00`, 'string') }}"
+            },
+            {
+              "keyName": "data_hora",
+              "condition": "lt",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fim', `Fim do intervalo (exclusivo), ISO 8601 com fuso -03:00`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -288,
+        1040
+      ],
+      "id": "852abb61-8a22-4635-b455-773d02da1c83",
+      "name": "ver_agenda_dentista"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Busca pacientes cadastrados pelo nome. Informe uma palavra do nome (primeiro nome ou sobrenome). Retorna id, nome, sobrenome, telefone e convênio. Use para obter o paciente_id antes de agendar.",
+        "operation": "getAll",
+        "tableId": "pacientes",
+        "limit": 10,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "nome",
+              "condition": "ilike",
+              "keyValue": "={{ '*' + $fromAI('termo', `Uma palavra do nome do paciente`, 'string') + '*' }}"
+            },
+            {
+              "keyName": "sobrenome",
+              "condition": "ilike",
+              "keyValue": "={{ '*' + $fromAI('termo', `Uma palavra do nome do paciente`, 'string') + '*' }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -160,
+        1040
+      ],
+      "id": "6c3c0bbe-adca-4160-a50c-1859be607711",
+      "name": "buscar_paciente"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cria uma consulta na agenda do dentista atual para um paciente cadastrado. Use somente depois de buscar o paciente, consultar a agenda do dia e o dentista confirmar paciente, data e horário. Informe paciente_id e data_hora em ISO 8601 com fuso -03:00. O dentista e o status são preenchidos automaticamente.",
+        "tableId": "consultas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "dentista_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "cliente_id",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('paciente_id', `ID do paciente, obtido em buscar_paciente`, 'number') }}"
+            },
+            {
+              "fieldId": "data_hora",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_hora', `Data e hora da consulta, ISO 8601 com fuso -03:00`, 'string') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendada"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -32,
+        1040
+      ],
+      "id": "008fc6dc-a7b6-44bb-b976-f658f29450f2",
+      "name": "agendar_consulta_dentista"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cancela uma consulta do dentista atual, alterando o status para cancelada. Use somente depois de o dentista confirmar qual consulta cancelar. Informe consulta_id, obtido em ver_agenda_dentista (campo consulta_id).",
+        "operation": "update",
+        "tableId": "consultas",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('consulta_id', `ID da consulta a cancelar, obtido em ver_agenda_dentista`, 'number') }}"
+            },
+            {
+              "keyName": "dentista_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelada"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        96,
+        1040
+      ],
+      "id": "54c52a42-1365-462e-b391-2d9d98e19ebf",
+      "name": "cancelar_consulta_dentista"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook').item.json.body.instance }}",
+        "remoteJid": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        16,
+        800
+      ],
+      "id": "6ad9ebe1-fa14-46b8-9042-82d3644d0120",
+      "name": "Enviar texto2"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Data e hora atual: {{ $now.setZone('America/Sao_Paulo').setLocale('pt-BR').toFormat(\"cccc, dd/LL/yyyy HH:mm\") }}\n\nDADOS DO CLIENTE\n- ID: {{ $json.id }}\n- Nome: {{ $json.nome }} {{ $json.sobrenome }}\n- Telefone: {{ $json.telefone }}\n- Convênio: {{ $json.convenio || 'não informado' }}\n\nMENSAGEM DO CLIENTE\n{{ $('Normaliza numero').item.json.mensagem }}",
+        "options": {
+          "systemMessage": "Você é a Sofia, secretária virtual da Clínica OdontoExemplo. Você atende clientes já cadastrados pelo WhatsApp e cuida de agendamentos de consultas.\n\n## O que você faz\n- Agendar novas consultas\n- Consultar as consultas do cliente (datas, horários e dentista)\n- Cancelar consultas do cliente\n- Remarcar (cancelar a antiga e agendar a nova, só após confirmação)\n\n## Regras de atendimento\n- O cliente já vem identificado no início da mensagem (ID, nome, telefone, convênio). Não peça esses dados de novo e chame o cliente pelo primeiro nome.\n- Você só pode ver, criar ou cancelar consultas do cliente que está conversando com você. Nunca informe dados de outros clientes.\n- Use a \"Data e hora atual\" informada para interpretar expressões como \"amanhã\", \"sexta\" ou \"semana que vem\". Fuso: America/Sao_Paulo.\n- Se o cliente informar só o dia do mês (por exemplo, \"dia 5\"), considere a próxima ocorrência futura desse dia.\n- Funcionamento: seg a sex, 08:00 às 18:00. Duração de cada consulta: 30 minutos. Horários: de 30 em 30 minutos. Não agende fora desse período nem no passado.\n- A agenda é separada por dentista. Antes de oferecer horários, pergunte com qual dentista o cliente prefere ser atendido, usando os nomes retornados pela tool de dentistas (nunca invente nomes). Se o cliente não tiver preferência, consulte a disponibilidade de cada dentista e ofereça horários indicando o dentista de cada um.\n- Antes de oferecer um horário, SEMPRE consulte a disponibilidade do dentista com a tool, usando o ID dele. Nunca invente horários ou datas. Não peça permissão para consultar: consulte e já apresente as opções.\n- Os horários livres de um dentista são os do funcionamento que NÃO aparecem como ocupados no resultado da tool para ele.\n- Se o cliente mencionar o período (manhã ou tarde), ofereça horários apenas desse período.\n- Ofereça no máximo 3 opções de horário por vez.\n- Antes de agendar ou cancelar, repita dentista, data, dia da semana e horário e peça a confirmação (\"sim\") do cliente. Só execute a tool depois de confirmado.\n- Depois de executar uma ação, confirme o resultado ao cliente. Se a tool retornar erro, avise que não foi possível e ofereça outra opção. Nunca diga que concluiu algo que a tool não confirmou.\n- Para cancelar, se o cliente tiver mais de uma consulta futura, liste (com o dentista de cada uma) e pergunte qual.\n\n## Estilo (WhatsApp)\n- Português do Brasil, tom cordial e profissional, mensagens curtas.\n- Sem markdown, sem títulos e sem listas longas. Datas no formato \"sexta, 03/10 às 14:30\".\n- Uma pergunta por vez.\n\n## Limites\n- Não dê orientação médica, diagnóstico nem valores de consulta. Para isso, diga que a equipe entrará em contato.\n- Se o cliente pedir algo fora do seu escopo ou demonstrar urgência, informe que um atendente humano falará com ele."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -320,
+        1280
+      ],
+      "id": "b7b016cd-ae97-4784-9fd8-3bde6b0b631c",
+      "name": "Agente pacientes",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -640,
+        1520
+      ],
+      "id": "e0f75764-4fc1-41f5-b9af-b0a69ba5a6de",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "0UF32Xe4NRi4mAiX",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $json.telefone }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [
+        -512,
+        1520
+      ],
+      "id": "c0649960-777f-4fb6-8c93-3ea22690de2c",
+      "name": "Redis Chat Memory (pacientes)",
+      "credentials": {
+        "redis": {
+          "id": "HkferlZd4TweXEDL",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista os dentistas da clínica (id e nome). Use para saber os nomes dos dentistas, perguntar a preferência do cliente e obter o dentista_id necessário para consultar horários e agendar.",
+        "operation": "getAll",
+        "tableId": "dentistas_publico",
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -384,
+        1520
+      ],
+      "id": "3e712804-798b-478d-b8b8-05a09cda7e48",
+      "name": "listar_dentistas"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista as consultas futuras com status agendada do paciente atual, com o nome do dentista. Use para informar datas e horários ao cliente ou para descobrir o consulta_id antes de cancelar. O paciente já é identificado automaticamente.",
+        "operation": "getAll",
+        "tableId": "consultas_detalhe",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "cliente_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "agendada"
+            },
+            {
+              "keyName": "data_hora",
+              "condition": "gte",
+              "keyValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -256,
+        1520
+      ],
+      "id": "ad08483a-64f6-4f00-91d6-c469ad091d2a",
+      "name": "minhas_consultas"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Lista as consultas já agendadas (horários ocupados) de UM dentista em um intervalo de datas. Use SEMPRE antes de oferecer horários. Informe dentista_id (obtido em listar_dentistas) e inicio e fim em ISO 8601 com fuso -03:00 (formato AAAA-MM-DDT00:00:00-03:00); para um dia inteiro, inicio é a meia-noite do dia e fim é a meia-noite do dia seguinte. Os horários que aparecerem no resultado estão ocupados para esse dentista.",
+        "operation": "getAll",
+        "tableId": "consultas",
+        "returnAll": true,
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "dentista_id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('dentista_id', `ID do dentista, obtido em listar_dentistas`, 'number') }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "agendada"
+            },
+            {
+              "keyName": "data_hora",
+              "condition": "gte",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('inicio', `Início do intervalo, ISO 8601 com fuso -03:00`, 'string') }}"
+            },
+            {
+              "keyName": "data_hora",
+              "condition": "lt",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('fim', `Fim do intervalo (exclusivo), ISO 8601 com fuso -03:00`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        1520
+      ],
+      "id": "1c30bd73-6254-4f12-b45f-a14642237908",
+      "name": "verificar_disponibilidade_dentista"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cria uma consulta para o paciente atual com um dentista. Use somente depois de consultar a disponibilidade desse dentista e de o cliente confirmar dentista, data e horário. Informe dentista_id (obtido em listar_dentistas) e data_hora em ISO 8601 com fuso -03:00. O paciente e o status são preenchidos automaticamente.",
+        "tableId": "consultas",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "cliente_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "dentista_id",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('dentista_id', `ID do dentista, obtido em listar_dentistas`, 'number') }}"
+            },
+            {
+              "fieldId": "data_hora",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('data_hora', `Data e hora da consulta, ISO 8601 com fuso -03:00`, 'string') }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "agendada"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        16,
+        1520
+      ],
+      "id": "37948483-6c97-40d8-a146-939170091cc7",
+      "name": "agendar_consulta_paciente"
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cancela uma consulta do paciente atual, alterando o status para cancelada. Use somente depois de o cliente confirmar qual consulta cancelar. Informe consulta_id, obtido em minhas_consultas (campo consulta_id).",
+        "operation": "update",
+        "tableId": "consultas",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('consulta_id', `ID da consulta a cancelar, obtido em minhas_consultas`, 'number') }}"
+            },
+            {
+              "keyName": "cliente_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelada"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        144,
+        1520
+      ],
+      "id": "4e9a4936-5f64-4154-96a4-6f38a2e8cff1",
+      "name": "cancelar_consulta_paciente"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook').item.json.body.instance }}",
+        "remoteJid": "={{ $('Webhook').item.json.body.data.key.remoteJid }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        336,
+        1392
+      ],
+      "id": "2c62634b-cb5a-4775-aac3-ebdeff76e755",
+      "name": "Enviar texto"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=TELEFONE DA PESSOA (já identificado pelo WhatsApp): {{ $('Normaliza numero').item.json.telefone }}\n\nMENSAGEM DA PESSOA\n{{$('Normaliza numero').item.json.mensagem }}",
+        "options": {
+          "systemMessage": "Você é a Sofia, secretária virtual da Clínica OdontoExemplo. Você está conversando pelo WhatsApp com uma pessoa cujo número ainda não tem cadastro na clínica. Sua única tarefa agora é fazer o cadastro dela.\n\n## Dados do cadastro\n- Nome completo (obrigatório)\n- Convênio (o nome do convênio, ou \"Particular\" se a pessoa não tiver)\n- Endereço (rua, número e bairro; se a pessoa não quiser informar, registre \"Não informado\")\nO telefone você já tem pelo WhatsApp: nunca peça o telefone.\n\n## Como conduzir\n- Na primeira mensagem, cumprimente, diga que não encontrou cadastro neste número e que vai fazer um cadastro rápido. Em seguida, peça o nome completo.\n- Faça uma pergunta por vez. Se a pessoa informar vários dados de uma vez, aproveite e não pergunte de novo. Use o histórico da conversa para não repetir perguntas.\n- Quando tiver todos os dados, repita-os de forma resumida e peça a confirmação (\"sim\") antes de salvar. Ao pedir a confirmação, informe de forma breve que os dados serão usados para o cadastro e o atendimento na clínica.\n- Só use a tool cadastrar_paciente depois da confirmação, e apenas uma vez. Separe o nome completo assim: \"nome\" é o primeiro nome e \"sobrenome\" é o restante. Escreva com iniciais maiúsculas.\n- Se a pessoa corrigir algum dado, atualize e peça a confirmação de novo.\n- Depois que a tool confirmar o cadastro, avise que o cadastro foi concluído e pergunte se ela quer agendar uma consulta. Não tente agendar agora: o agendamento começa na próxima mensagem dela.\n- Se a tool retornar erro, nunca diga que o cadastro foi feito. Peça desculpas, diga que houve uma instabilidade e que um atendente humano entrará em contato.\n\n## Estilo (WhatsApp)\n- Português do Brasil, tom cordial e profissional, mensagens curtas.\n- Sem markdown, sem títulos e sem listas longas.\n- Uma pergunta por vez.\n\n## Limites\n- Não dê orientação médica, diagnóstico nem valores de consulta.\n- Se a pessoa pedir para agendar ou outra coisa antes de concluir, explique que primeiro precisa terminar o cadastro rápido e retome a pergunta pendente.\n- Se a pessoa demonstrar urgência, informe que um atendente humano falará com ela."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -224,
+        1776
+      ],
+      "id": "b580590d-6a25-4dfc-bece-0a3bc02462cb",
+      "name": "Agente de cadastro",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "model": "qwen/qwen3.8-27b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -304,
+        1984
+      ],
+      "id": "1a1c0362-ba0a-4e53-a7df-daef358f1e29",
+      "name": "Groq Chat Model (cadastro)",
+      "credentials": {
+        "groqApi": {
+          "id": "0UF32Xe4NRi4mAiX",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Normaliza numero').first().json.telefone }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
+      "typeVersion": 1.6,
+      "position": [
+        -176,
+        1984
+      ],
+      "id": "14061f52-c390-4309-9192-aededda4fa39",
+      "name": "Redis Chat Memory (cadastro)",
+      "credentials": {
+        "redis": {
+          "id": "HkferlZd4TweXEDL",
+          "name": "Redis account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "descriptionType": "manual",
+        "toolDescription": "Cadastra um novo paciente na clínica. Use somente depois de ter nome, sobrenome, convênio e endereço e de a pessoa confirmar os dados. Use apenas uma vez por pessoa. O telefone é preenchido automaticamente.",
+        "tableId": "pacientes",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "nome",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nome', `Primeiro nome do paciente, com iniciais maiúsculas`, 'string') }}"
+            },
+            {
+              "fieldId": "sobrenome",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('sobrenome', `Restante do nome completo (sobrenomes), com iniciais maiúsculas`, 'string') }}"
+            },
+            {
+              "fieldId": "telefone",
+              "fieldValue": "={{ $('Normaliza numero').first().json.telefone }}"
+            },
+            {
+              "fieldId": "convenio",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('convenio', `Nome do convênio, ou Particular se não tiver`, 'string') }}"
+            },
+            {
+              "fieldId": "endereco",
+              "fieldValue": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('endereco', `Endereço (rua, número e bairro), ou Não informado`, 'string') }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabaseTool",
+      "typeVersion": 1,
+      "position": [
+        -48,
+        1984
+      ],
+      "id": "80906efd-a702-4b9d-bbca-a78098448212",
+      "name": "cadastrar_paciente"
+    },
+    {
+      "parameters": {
+        "resource": "messages-api",
+        "instanceName": "={{ $('Webhook').last().json.body.instance }}",
+        "remoteJid": "={{ $('Webhook').last().json.body.data.key.remoteJid }}",
+        "messageText": "={{ $json.output }}",
+        "options_message": {}
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        96,
+        1776
+      ],
+      "id": "730ee1c2-67a8-4757-9d57-904a76de387e",
+      "name": "Enviar texto1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "É mensagem fromMe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É mensagem fromMe?": {
+      "main": [
+        [
+          {
+            "node": "Normaliza numero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normaliza numero": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Busca dentista",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Busca dentista",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Busca cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca dentista": {
+      "main": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Busca cliente": {
+      "main": [
+        [
+          {
+            "node": "Cliente existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cliente existe?": {
+      "main": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Agente de cadastro",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory (dentistas)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ver_agenda_dentista": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "buscar_paciente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_consulta_dentista": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_consulta_dentista": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente dentistas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente dentistas": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory (pacientes)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "listar_dentistas": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "minhas_consultas": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verificar_disponibilidade_dentista": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "agendar_consulta_paciente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cancelar_consulta_paciente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente pacientes",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente pacientes": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model (cadastro)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Agente de cadastro",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Redis Chat Memory (cadastro)": {
+      "ai_memory": [
+        [
+          {
+            "node": "Agente de cadastro",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "cadastrar_paciente": {
+      "ai_tool": [
+        [
+          {
+            "node": "Agente de cadastro",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente de cadastro": {
+      "main": [
+        [
+          {
+            "node": "Enviar texto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "c72d6faf-52e3-407b-8a6e-813b43a0978e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8902e4808a4fb72a993a280be44474830cb298359e550b18a20ecaf441907264"
+  },
+  "nodeGroups": [],
+  "id": "FEzaDlo3apC6y7Sy",
+  "tags": []
+}
